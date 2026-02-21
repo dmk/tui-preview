@@ -1,7 +1,15 @@
 {
   "name": "@dkkoval/tui-preview",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "React component for embedding interactive TUI apps via ghostty-web",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dmk/tui-preview"
+  },
+  "homepage": "https://github.com/dmk/tui-preview#readme",
+  "bugs": {
+    "url": "https://github.com/dmk/tui-preview/issues"
+  },
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
