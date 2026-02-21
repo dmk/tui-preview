@@ -1,5 +1,5 @@
 {
-  "name": "tui-preview",
+  "name": "@dkkoval/tui-preview",
   "version": "0.1.0",
   "description": "React component for embedding interactive TUI apps via ghostty-web",
   "type": "module",
@@ -19,7 +19,9 @@
       "import": "./dist/core/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "clean": "rm -rf dist dist-example",
     "dev": "vite example",
