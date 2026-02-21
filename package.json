@@ -1,0 +1,49 @@
+{
+  "name": "tui-preview",
+  "version": "0.1.0",
+  "description": "React component for embedding interactive TUI apps via ghostty-web",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "clean": "rm -rf dist dist-example",
+    "dev": "vite example",
+    "build": "vite build",
+    "build:lib": "tsc -p tsconfig.json && vite build --mode lib",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run -s build:lib && node --test tests/*.test.mjs",
+    "check": "npm run typecheck && npm run test"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "dependencies": {
+    "ghostty-web": "^0.4.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "@vitejs/plugin-react": "^4",
+    "react": "^18",
+    "react-dom": "^18",
+    "typescript": "^5",
+    "vite": "^6",
+    "vite-plugin-wasm": "^3"
+  }
+}
