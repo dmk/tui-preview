@@ -13,9 +13,17 @@ createRoot(document.getElementById("root")!).render(
         // so the preview reflects terminal sizing directly.
         const innerCols = Math.max(1, cols);
         const innerRows = Math.max(1, rows - 1);
-        return ["Hello!", String(innerCols), String(innerRows), "--gradient", "diagonal", "--no-border"];
+        return [
+          "Tui-Preview",
+          String(innerCols),
+          String(innerRows),
+          "--gradient",
+          "diagonal",
+          "--no-border",
+        ];
       }}
       fit="container"
+      mode="static"
       terminal={{
         fontSize: 14,
         theme: {
@@ -23,7 +31,7 @@ createRoot(document.getElementById("root")!).render(
           foreground: "#a9b1d6",
         },
       }}
-      style={{ width: "100%", height: "400px" }}
+      style={{ width: "100%", maxWidth: "800px", height: "400px" }}
     />
-  </StrictMode>
+  </StrictMode>,
 );

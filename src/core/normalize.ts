@@ -4,6 +4,7 @@ import type {
   TuiPreviewLegacyProps,
   TuiPreviewModernProps,
   TuiPreviewProps,
+  TuiRenderMode,
   TuiRuntimeSize,
 } from "../types.js";
 
@@ -68,10 +69,12 @@ export function resolveTuiPreviewProps(
           rows: Math.max(1, props.size?.rows ?? DEFAULT_SIZE.rows),
         };
 
+    const mode = (props.mode ?? "terminal") as TuiRenderMode;
     return {
       wasm: props.wasm,
       env: props.env ?? EMPTY_ENV,
-      interactive: props.interactive ?? true,
+      interactive: mode === "static" ? false : (props.interactive ?? true),
+      mode,
       fit,
       size,
       terminal: {
@@ -94,6 +97,7 @@ export function resolveTuiPreviewProps(
     wasm: props.app,
     env: props.env ?? EMPTY_ENV,
     interactive: props.interactive ?? true,
+    mode: "terminal" as TuiRenderMode,
     fit,
     size,
     terminal: {

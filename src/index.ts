@@ -4,6 +4,7 @@ export type {
   ResolvedTuiPreviewOptions,
   TuiArgv,
   TuiFitMode,
+  TuiRenderMode,
   TuiPreviewCommonProps,
   TuiPreviewLegacyProps,
   TuiPreviewModernProps,

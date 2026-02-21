@@ -1,6 +1,5 @@
 node_modules/
 dist/
 dist-example/
-bun.lock
 *.wasm
 !example/*.wasm

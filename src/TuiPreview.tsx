@@ -12,7 +12,6 @@ export function TuiPreview(props: TuiPreviewProps) {
   const [status, setStatus] = useState<TuiPreviewStatus>("loading");
   const [errorMsg, setErrorMsg] = useState("");
   const cellSizeRef = useRef<{ w: number; h: number } | null>(null);
-
   const [termSize, setTermSize] = useState<TuiRuntimeSize | null>(resolved.size);
 
   useEffect(() => {
@@ -83,6 +82,11 @@ export function TuiPreview(props: TuiPreviewProps) {
         termRef.current = term;
         term.open(container);
 
+        // Static mode: hide cursor via DEC PM — app output only, no cursor chrome.
+        if (resolved.mode === "static") {
+          term.write("\x1b[?25l");
+        }
+
         let appCols = term.cols;
         let appRows = term.rows;
 
@@ -151,6 +155,7 @@ export function TuiPreview(props: TuiPreviewProps) {
       termRef.current = null;
     };
   }, [
+    resolved.mode,
     termSize,
     resolved.wasm,
     resolved.resolveArgv,

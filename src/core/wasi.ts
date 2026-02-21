@@ -206,15 +206,22 @@ export class WasiExitError extends Error {
   }
 }
 
+/** Compiled module cache — keyed by URL string, persists for the page lifetime. */
+const moduleCache = new Map<string, WebAssembly.Module>();
+
 /** Load and instantiate a WASM TUI app with a WasiBridge */
 export async function instantiateApp(
   source: string | URL,
   bridge: WasiBridge
 ): Promise<{ run: () => Promise<void> }> {
-  const response = await fetch(source);
-  const bytes = await response.arrayBuffer();
-
-  const module = await WebAssembly.compile(bytes);
+  const key = source.toString();
+  let module = moduleCache.get(key);
+  if (!module) {
+    const response = await fetch(source);
+    const bytes = await response.arrayBuffer();
+    module = await WebAssembly.compile(bytes);
+    moduleCache.set(key, module);
+  }
 
   const importObject: WebAssembly.Imports = {
     wasi_snapshot_preview1: bridge.imports,

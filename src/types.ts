@@ -5,6 +5,7 @@ export interface TuiRuntimeSize {
 
 export type TuiArgv = string[] | ((size: TuiRuntimeSize) => string[]);
 export type TuiFitMode = "container" | "none";
+export type TuiRenderMode = "terminal" | "static";
 export type TuiPreviewStatus = "loading" | "running" | "exited" | "error";
 
 export interface TuiTerminalOptions {
@@ -40,6 +41,13 @@ export interface TuiPreviewModernProps extends TuiPreviewCommonProps {
   wasm: string | URL;
   /** CLI argv (without argv[0]), static or size-aware */
   argv?: TuiArgv;
+  /**
+   * Render mode.
+   * - `"terminal"` (default): full ghostty-web terminal, supports interactive apps.
+   * - `"static"`: runs the app once, captures stdout, renders ANSI output as HTML.
+   *   No cursor, no input. Ideal for non-interactive previews in docs.
+   */
+  mode?: TuiRenderMode;
   /** "container" auto-fit or "none" fixed size. Default: "container" */
   fit?: TuiFitMode;
   /** Fixed size (fit="none") or initial fallback (fit="container") */
@@ -101,6 +109,7 @@ export interface ResolvedTuiPreviewOptions {
   wasm: string | URL;
   env: Record<string, string>;
   interactive: boolean;
+  mode: TuiRenderMode;
   fit: TuiFitMode;
   size: TuiRuntimeSize;
   terminal: Required<Omit<TuiTerminalOptions, "theme">> & {
