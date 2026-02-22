@@ -1,6 +1,6 @@
 {
   "name": "@dkkoval/tui-preview",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "React component for embedding interactive TUI apps via libghostty",
   "repository": {
     "type": "git",
@@ -35,11 +35,11 @@
     "build:ghostty-wasm": "./scripts/build-libghostty-wasm.sh",
     "dev": "vite example",
     "build": "vite build",
-    "build:lib": "npm run -s clean && tsc -p tsconfig.json && vite build --mode lib",
-    "prepack": "npm run -s build:lib && npm run -s build:ghostty-wasm dist/ghostty-vt.wasm",
+    "build:lib": "tsc -p tsconfig.json && vite build --mode lib",
+    "prepack": "tsc -p tsconfig.json && vite build --mode lib && ./scripts/build-libghostty-wasm.sh dist/ghostty-vt.wasm",
     "typecheck": "tsc --noEmit",
-    "test": "npm run -s build:lib && node --test tests/*.test.mjs",
-    "check": "npm run typecheck && npm run test"
+    "test": "tsc -p tsconfig.json && vite build --mode lib && node --test tests/*.test.mjs",
+    "check": "tsc --noEmit && tsc -p tsconfig.json && vite build --mode lib && node --test tests/*.test.mjs"
   },
   "peerDependencies": {
     "react": ">=18",
