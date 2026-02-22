@@ -1,5 +1,5 @@
 /**
- * WASI bridge — connects a wasm32-wasi TUI app to a ghostty-web terminal.
+ * WASI bridge — connects a wasm32-wasi TUI app to a terminal surface.
  *
  * Implements a minimal WASI preview1 surface sufficient for interactive TUI apps:
  *   - fd_write (stdout/stderr → terminal)
@@ -15,6 +15,7 @@ import type { WasiOptions } from "../types.js";
 const WASI_ESUCCESS = 0;
 const WASI_EAGAIN = 6;
 const WASI_BADF = 8;
+const WASI_EVENTTYPE_FD_READ = 1;
 
 const STDIN_FD = 0;
 const STDOUT_FD = 1;
@@ -126,7 +127,7 @@ export class WasiBridge {
 
       fd_read: (fd: number, iovsPtr: number, iovsLen: number, nreadPtr: number) => {
         if (fd !== STDIN_FD) return WASI_BADF;
-        const chunk = this.inputQueue.shift();
+        const chunk = this.inputQueue[0];
         if (!chunk) return WASI_EAGAIN;
         const view = this.view();
         const u8 = this.u8();
@@ -138,6 +139,11 @@ export class WasiBridge {
           u8.set(chunk.subarray(nread, nread + toCopy), ptr);
           nread += toCopy;
         }
+        if (nread >= chunk.length) {
+          this.inputQueue.shift();
+        } else if (nread > 0) {
+          this.inputQueue[0] = chunk.subarray(nread);
+        }
         view.setUint32(nreadPtr, nread, true);
         return WASI_ESUCCESS;
       },
@@ -148,7 +154,7 @@ export class WasiBridge {
         for (let i = 0; i < nsubscriptions; i++) {
           const subPtr = inPtr + i * 48;
           const type = view.getUint8(subPtr + 8);
-          if (type === 0 && this.inputQueue.length > 0) {
+          if (type === WASI_EVENTTYPE_FD_READ && this.inputQueue.length > 0) {
             const evPtr = outPtr + nevents * 32;
             view.setBigUint64(evPtr, view.getBigUint64(subPtr, true), true);
             view.setUint16(evPtr + 8, 0, true);
@@ -218,7 +224,13 @@ export async function instantiateApp(
   let module = moduleCache.get(key);
   if (!module) {
     const response = await fetch(source);
+    if (!response.ok) {
+      throw new Error(`Failed to load app wasm: ${response.status} ${response.statusText}`);
+    }
     const bytes = await response.arrayBuffer();
+    if (bytes.byteLength === 0) {
+      throw new Error("App wasm is empty.");
+    }
     module = await WebAssembly.compile(bytes);
     moduleCache.set(key, module);
   }

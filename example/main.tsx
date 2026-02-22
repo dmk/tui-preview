@@ -26,6 +26,7 @@ createRoot(document.getElementById("root")!).render(
       mode="static"
       terminal={{
         fontSize: 14,
+        wasmUrl: "/ghostty-vt.wasm",
         theme: {
           background: "#1a1b26",
           foreground: "#a9b1d6",

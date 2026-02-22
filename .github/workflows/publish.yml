@@ -13,10 +13,15 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
       - uses: oven-sh/setup-bun@v2
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.15.2
       - run: bun install --frozen-lockfile
       - run: bun run build:lib
       - run: npm publish --provenance --access public

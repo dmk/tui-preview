@@ -1,5 +1,8 @@
 node_modules/
 dist/
 dist-example/
+.zig-cache/
+.zig-global-cache/
+zig-out/
 *.wasm
 !example/*.wasm

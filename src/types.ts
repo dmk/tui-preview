@@ -5,7 +5,7 @@ export interface TuiRuntimeSize {
 
 export type TuiArgv = string[] | ((size: TuiRuntimeSize) => string[]);
 export type TuiFitMode = "container" | "none";
-export type TuiRenderMode = "terminal" | "static";
+export type TuiRenderMode = "interactive" | "static";
 export type TuiPreviewStatus = "loading" | "running" | "exited" | "error";
 
 export interface TuiTerminalOptions {
@@ -13,10 +13,10 @@ export interface TuiTerminalOptions {
   fontSize?: number;
   /** CSS font family. Default: monospace */
   fontFamily?: string;
-  /** ghostty-web theme overrides */
+  /** Terminal color theme overrides */
   theme?: Partial<GhosttyTheme>;
-  /** Cursor blinking. Default: true */
-  cursorBlink?: boolean;
+  /** URL to libghostty-vt wasm. Default: "/ghostty-vt.wasm" */
+  wasmUrl?: string | URL;
   /** Convert LF to CRLF. Default: true */
   convertEol?: boolean;
 }
@@ -41,12 +41,7 @@ export interface TuiPreviewModernProps extends TuiPreviewCommonProps {
   wasm: string | URL;
   /** CLI argv (without argv[0]), static or size-aware */
   argv?: TuiArgv;
-  /**
-   * Render mode.
-   * - `"terminal"` (default): full ghostty-web terminal, supports interactive apps.
-   * - `"static"`: runs the app once, captures stdout, renders ANSI output as HTML.
-   *   No cursor, no input. Ideal for non-interactive previews in docs.
-   */
+  /** Render mode. Default: "interactive" */
   mode?: TuiRenderMode;
   /** "container" auto-fit or "none" fixed size. Default: "container" */
   fit?: TuiFitMode;
@@ -56,21 +51,7 @@ export interface TuiPreviewModernProps extends TuiPreviewCommonProps {
   terminal?: TuiTerminalOptions;
 }
 
-/**
- * Legacy API retained for backwards compatibility.
- * Prefer `TuiPreviewModernProps`.
- */
-export interface TuiPreviewLegacyProps extends TuiPreviewCommonProps {
-  app: string | URL;
-  args?: TuiArgv;
-  cols?: number;
-  rows?: number;
-  fontSize?: number;
-  fontFamily?: string;
-  theme?: Partial<GhosttyTheme>;
-}
-
-export type TuiPreviewProps = TuiPreviewModernProps | TuiPreviewLegacyProps;
+export type TuiPreviewProps = TuiPreviewModernProps;
 
 export interface GhosttyTheme {
   background: string;
@@ -112,12 +93,12 @@ export interface ResolvedTuiPreviewOptions {
   mode: TuiRenderMode;
   fit: TuiFitMode;
   size: TuiRuntimeSize;
-  terminal: Required<Omit<TuiTerminalOptions, "theme">> & {
+  terminal: Required<Omit<TuiTerminalOptions, "theme" | "wasmUrl">> & {
     theme?: Partial<GhosttyTheme>;
+    wasmUrl?: string | URL;
   };
   resolveArgv: (size: TuiRuntimeSize) => string[];
   onExit?: (code: number) => void;
   onError?: (error: unknown) => void;
   onStatusChange?: (status: TuiPreviewStatus) => void;
-  usedLegacyProps: boolean;
 }

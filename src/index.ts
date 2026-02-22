@@ -6,7 +6,6 @@ export type {
   TuiFitMode,
   TuiRenderMode,
   TuiPreviewCommonProps,
-  TuiPreviewLegacyProps,
   TuiPreviewModernProps,
   TuiPreviewProps,
   TuiPreviewStatus,
@@ -14,4 +13,4 @@ export type {
   TuiTerminalOptions,
   WasiOptions,
 } from "./types.js";
-export { WasiBridge, WasiExitError, instantiateApp } from "./wasi.js";
+export { WasiBridge, WasiExitError, instantiateApp } from "./core/wasi.js";
