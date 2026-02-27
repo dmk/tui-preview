@@ -2,7 +2,7 @@ import type { GhosttyTheme } from "../types.js";
 
 const EXPECTED_CELL_SIZE = 16;
 const EXPECTED_TERMINAL_CONFIG_SIZE = 80;
-const DEFAULT_WASM_URL = "/ghostty-vt.wasm";
+const DEFAULT_WASM_URL = new URL("./ghostty-vt.wasm", import.meta.url).href;
 
 const FLAG_BOLD = 1 << 0;
 const FLAG_ITALIC = 1 << 1;

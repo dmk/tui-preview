@@ -13,14 +13,12 @@
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
-  "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/index.js"
     },
     "./core": {
       "types": "./dist/core/index.d.ts",
@@ -35,11 +33,11 @@
     "build:ghostty-wasm": "./scripts/build-libghostty-wasm.sh",
     "dev": "vite example",
     "build": "vite build",
-    "build:lib": "tsc -p tsconfig.json && vite build --mode lib",
-    "prepack": "tsc -p tsconfig.json && vite build --mode lib && ./scripts/build-libghostty-wasm.sh dist/ghostty-vt.wasm",
+    "build:lib": "tsc -p tsconfig.json",
+    "prepack": "tsc -p tsconfig.json && ./scripts/build-libghostty-wasm.sh dist/core/ghostty-vt.wasm",
     "typecheck": "tsc --noEmit",
-    "test": "tsc -p tsconfig.json && vite build --mode lib && node --test tests/*.test.mjs",
-    "check": "tsc --noEmit && tsc -p tsconfig.json && vite build --mode lib && node --test tests/*.test.mjs"
+    "test": "tsc -p tsconfig.json && node --test tests/*.test.mjs",
+    "check": "tsc --noEmit && tsc -p tsconfig.json && node --test tests/*.test.mjs"
   },
   "peerDependencies": {
     "react": ">=18",

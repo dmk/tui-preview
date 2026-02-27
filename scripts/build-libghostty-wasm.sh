@@ -9,7 +9,7 @@ if [[ "$#" -gt 0 ]]; then
 else
   OUT_PATHS=(
     "$ROOT_DIR/example/public/ghostty-vt.wasm"
-    "$ROOT_DIR/dist/ghostty-vt.wasm"
+    "$ROOT_DIR/dist/core/ghostty-vt.wasm"
   )
 fi
 
