@@ -6,3 +6,4 @@ dist-example/
 zig-out/
 *.wasm
 !example/*.wasm
+example/*/target

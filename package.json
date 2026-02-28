@@ -32,6 +32,7 @@
     "clean": "rm -rf dist dist-example",
     "build:ghostty-wasm": "./scripts/build-libghostty-wasm.sh",
     "dev": "vite example",
+    "build:examples": "./scripts/build-examples-wasm.sh",
     "build": "vite build",
     "build:lib": "tsc -p tsconfig.json",
     "prepack": "tsc -p tsconfig.json && ./scripts/build-libghostty-wasm.sh dist/core/ghostty-vt.wasm",

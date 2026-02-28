@@ -4,7 +4,7 @@
  * Implements a minimal WASI preview1 surface sufficient for interactive TUI apps:
  *   - fd_write (stdout/stderr → terminal)
  *   - fd_read (stdin ← keyboard input queue)
- *   - poll_oneoff (non-blocking stdin check, needed by crossterm/ratatui)
+ *   - poll_oneoff (suspending stdin wait via JSPI, needed by crossterm/ratatui)
  *   - proc_exit
  *   - environ_get / environ_sizes_get
  *   - args_get / args_sizes_get
@@ -15,15 +15,23 @@ import type { WasiOptions } from "../types.js";
 const WASI_ESUCCESS = 0;
 const WASI_EAGAIN = 6;
 const WASI_BADF = 8;
+const WASI_EVENTTYPE_CLOCK = 0;
 const WASI_EVENTTYPE_FD_READ = 1;
 
 const STDIN_FD = 0;
 const STDOUT_FD = 1;
 const STDERR_FD = 2;
 
+/** Feature-detect JSPI (WebAssembly.Suspending / WebAssembly.promising). */
+export const hasJSPI =
+  typeof WebAssembly.Suspending === "function" &&
+  typeof WebAssembly.promising === "function";
+
 export class WasiBridge {
   private inputQueue: Uint8Array[] = [];
   private memory!: WebAssembly.Memory;
+  /** Resolvers waiting for input to arrive (used by suspending poll_oneoff). */
+  private inputWaiters: Array<() => void> = [];
 
   constructor(private opts: WasiOptions) {}
 
@@ -31,6 +39,10 @@ export class WasiBridge {
   pushInput(data: string | Uint8Array) {
     const chunk = typeof data === "string" ? new TextEncoder().encode(data) : data;
     this.inputQueue.push(chunk);
+    // Wake any suspended poll_oneoff calls.
+    for (const resolve of this.inputWaiters.splice(0)) {
+      resolve();
+    }
   }
 
   /** Attach the WASM instance's memory after instantiation */
@@ -44,6 +56,23 @@ export class WasiBridge {
 
   private u8() {
     return new Uint8Array(this.memory.buffer);
+  }
+
+  /** Wait until the input queue has data, or until the given timeout (ms). */
+  private waitForInput(timeoutMs: number): Promise<void> {
+    if (this.inputQueue.length > 0) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      const waiter = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      const timer = setTimeout(() => {
+        const idx = this.inputWaiters.indexOf(waiter);
+        if (idx >= 0) this.inputWaiters.splice(idx, 1);
+        resolve();
+      }, timeoutMs);
+      this.inputWaiters.push(waiter);
+    });
   }
 
   // ── WASI imports object ────────────────────────────────────────────────
@@ -148,23 +177,85 @@ export class WasiBridge {
         return WASI_ESUCCESS;
       },
 
-      poll_oneoff: (inPtr: number, outPtr: number, nsubscriptions: number, neventsPtr: number) => {
-        const view = this.view();
-        let nevents = 0;
-        for (let i = 0; i < nsubscriptions; i++) {
-          const subPtr = inPtr + i * 48;
-          const type = view.getUint8(subPtr + 8);
-          if (type === WASI_EVENTTYPE_FD_READ && this.inputQueue.length > 0) {
-            const evPtr = outPtr + nevents * 32;
-            view.setBigUint64(evPtr, view.getBigUint64(subPtr, true), true);
-            view.setUint16(evPtr + 8, 0, true);
-            view.setUint8(evPtr + 10, type);
-            nevents++;
-          }
-        }
-        view.setUint32(neventsPtr, nevents, true);
-        return WASI_ESUCCESS;
-      },
+      // poll_oneoff — the critical syscall for event-loop TUI apps.
+      //
+      // With JSPI: wrapped as a WebAssembly.Suspending import so the WASM
+      // instance suspends while we await input, yielding to the browser
+      // event loop. This is what allows keyboard events to arrive.
+      //
+      // Without JSPI: synchronous non-blocking check (legacy/replay mode).
+      poll_oneoff: hasJSPI
+        ? async (inPtr: number, outPtr: number, nsubscriptions: number, neventsPtr: number) => {
+              const view = this.view();
+
+              // Check if any FD_READ subscription can be satisfied immediately.
+              let hasFdRead = false;
+              let clockTimeoutNs = -1n;
+              for (let i = 0; i < nsubscriptions; i++) {
+                const subPtr = inPtr + i * 48;
+                const type = view.getUint8(subPtr + 8);
+                if (type === WASI_EVENTTYPE_FD_READ) {
+                  hasFdRead = true;
+                }
+                if (type === WASI_EVENTTYPE_CLOCK) {
+                  const timeout = view.getBigUint64(subPtr + 24, true);
+                  if (clockTimeoutNs < 0n || timeout < clockTimeoutNs) {
+                    clockTimeoutNs = timeout;
+                  }
+                }
+              }
+
+              // If there's an FD_READ subscription and no data yet, suspend.
+              if (hasFdRead && this.inputQueue.length === 0) {
+                const timeoutMs =
+                  clockTimeoutNs >= 0n
+                    ? Number(clockTimeoutNs / 1_000_000n)
+                    : 60_000;
+                await this.waitForInput(Math.max(1, Math.min(timeoutMs, 60_000)));
+              }
+
+              // Now fill out the events.
+              let nevents = 0;
+              for (let i = 0; i < nsubscriptions; i++) {
+                const subPtr = inPtr + i * 48;
+                const type = view.getUint8(subPtr + 8);
+                const userdata = view.getBigUint64(subPtr, true);
+                if (type === WASI_EVENTTYPE_FD_READ && this.inputQueue.length > 0) {
+                  const evPtr = outPtr + nevents * 32;
+                  view.setBigUint64(evPtr, userdata, true);
+                  view.setUint16(evPtr + 8, 0, true); // error = 0
+                  view.setUint8(evPtr + 10, type);
+                  nevents++;
+                } else if (type === WASI_EVENTTYPE_CLOCK) {
+                  // Clock subscriptions always fire (we already waited).
+                  const evPtr = outPtr + nevents * 32;
+                  view.setBigUint64(evPtr, userdata, true);
+                  view.setUint16(evPtr + 8, 0, true);
+                  view.setUint8(evPtr + 10, type);
+                  nevents++;
+                }
+              }
+              view.setUint32(neventsPtr, nevents, true);
+              return WASI_ESUCCESS;
+            }
+        : (inPtr: number, outPtr: number, nsubscriptions: number, neventsPtr: number) => {
+            // Fallback: synchronous non-blocking check (no JSPI).
+            const view = this.view();
+            let nevents = 0;
+            for (let i = 0; i < nsubscriptions; i++) {
+              const subPtr = inPtr + i * 48;
+              const type = view.getUint8(subPtr + 8);
+              if (type === WASI_EVENTTYPE_FD_READ && this.inputQueue.length > 0) {
+                const evPtr = outPtr + nevents * 32;
+                view.setBigUint64(evPtr, view.getBigUint64(subPtr, true), true);
+                view.setUint16(evPtr + 8, 0, true);
+                view.setUint8(evPtr + 10, type);
+                nevents++;
+              }
+            }
+            view.setUint32(neventsPtr, nevents, true);
+            return WASI_ESUCCESS;
+          },
 
       proc_exit: (code: number) => {
         this.opts.onExit(code);
@@ -235,20 +326,32 @@ export async function instantiateApp(
     moduleCache.set(key, module);
   }
 
+  const wasiImports = bridge.imports;
+  if (hasJSPI) {
+    wasiImports.poll_oneoff = new WebAssembly.Suspending(
+      wasiImports.poll_oneoff as (...args: any[]) => Promise<any>,
+    ) as unknown as WebAssembly.ImportValue;
+  }
   const importObject: WebAssembly.Imports = {
-    wasi_snapshot_preview1: bridge.imports,
+    wasi_snapshot_preview1: wasiImports,
   };
 
   const instance = await WebAssembly.instantiate(module, importObject);
   bridge.attachMemory(instance.exports.memory as WebAssembly.Memory);
 
-  const _start = instance.exports._start as (() => void) | undefined;
-  if (!_start) throw new Error("WASM module has no _start export");
+  const rawStart = instance.exports._start as (() => void) | undefined;
+  if (!rawStart) throw new Error("WASM module has no _start export");
+
+  // With JSPI, wrap _start so it returns a Promise that resolves when the
+  // WASM app finishes (or suspends on poll_oneoff and resumes later).
+  const _start: () => void | Promise<void> = hasJSPI
+    ? WebAssembly.promising(rawStart)
+    : rawStart;
 
   return {
     run: async () => {
       try {
-        _start();
+        await _start();
       } catch (e) {
         if (!(e instanceof WasiExitError)) throw e;
       }

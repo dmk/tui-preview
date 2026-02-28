@@ -1,0 +1,18 @@
+[package]
+name = "counter-example"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "counter"
+path = "src/main.rs"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tui-dispatch = "0.6.1"
+ratatui = "0.29"
+crossterm = "0.28"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tui-dispatch = { version = "0.6", default-features = false }
+ratatui = { version = "0.29", default-features = false }
+tinycrossterm = "0.1.0"

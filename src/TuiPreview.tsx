@@ -41,9 +41,6 @@ export function TuiPreview(props: TuiPreviewProps) {
       updateFromPixels(rect.width, rect.height);
     }
 
-    // Current fit strategy recalculates cols/rows from measured cell size and
-    // recreates the surface on size changes. This is acceptable for now, but
-    // an in-place resize path would be smoother for frequent container resizes.
     const observer = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect;
       if (width > 0 && height > 0) {
@@ -60,8 +57,11 @@ export function TuiPreview(props: TuiPreviewProps) {
 
     let cancelled = false;
     let disposeRenderSurface: (() => void) | null = null;
+    let activeBridge: WasiBridge | null = null;
+
     const container = containerRef.current;
     const activeSize = termSize;
+
     const setStatusAndNotify = (next: TuiPreviewStatus) => {
       setStatus(next);
       resolved.onStatusChange?.(next);
@@ -80,7 +80,51 @@ export function TuiPreview(props: TuiPreviewProps) {
       try {
         let appCols = activeSize.cols;
         let appRows = activeSize.rows;
-        let bridge: WasiBridge | null = null;
+
+        const runOnce = async (surface: Awaited<ReturnType<typeof createMiniTerminalSurface>>) => {
+          const resolvedArgs = resolved.resolveArgv({ cols: appCols, rows: appRows });
+          const stdoutDecoder = new TextDecoder();
+          const stderrDecoder = new TextDecoder();
+
+          const flushSurfaceOutput = (
+            data: Uint8Array,
+            decoder: TextDecoder,
+            bridge: WasiBridge
+          ) => {
+            const decoded = decoder.decode(data, { stream: true });
+            if (decoded) {
+              surface.write(decoded);
+            }
+            for (const response of surface.drainResponses()) {
+              bridge.pushInput(response);
+            }
+          };
+
+          let bridge: WasiBridge;
+          bridge = new WasiBridge({
+            args: [resolved.wasm.toString(), ...resolvedArgs],
+            env: {
+              COLUMNS: String(appCols),
+              LINES: String(appRows),
+              ...resolved.env,
+            },
+            stdout: (data) => flushSurfaceOutput(data, stdoutDecoder, bridge),
+            stderr: (data) => flushSurfaceOutput(data, stderrDecoder, bridge),
+            onExit: (code) => {
+              if (!cancelled) {
+                setStatusAndNotify("exited");
+                resolved.onExit?.(code);
+              }
+            },
+          });
+
+          activeBridge = bridge;
+
+          const wasmApp = await instantiateApp(resolved.wasm, bridge);
+          if (cancelled) return;
+
+          await wasmApp.run();
+        };
 
         const surface = await createMiniTerminalSurface({
           container,
@@ -93,8 +137,11 @@ export function TuiPreview(props: TuiPreviewProps) {
           interactive: resolved.mode !== "static" && resolved.interactive,
           showCursor: resolved.mode !== "static",
           wasmUrl: resolved.terminal.wasmUrl,
-          onInput: (data) => bridge?.pushInput(data),
+          onInput: (data) => {
+            activeBridge?.pushInput(data);
+          },
         });
+
         if (cancelled) {
           surface.dispose();
           return;
@@ -105,40 +152,11 @@ export function TuiPreview(props: TuiPreviewProps) {
         appRows = surface.rows;
         cellSizeRef.current = surface.cellSize;
 
-        const resolvedArgs = resolved.resolveArgv({ cols: appCols, rows: appRows });
-        const stdoutDecoder = new TextDecoder();
-        const stderrDecoder = new TextDecoder();
-        const flushSurfaceOutput = (data: Uint8Array, decoder: TextDecoder) => {
-          const decoded = decoder.decode(data, { stream: true });
-          if (decoded) {
-            surface.write(decoded);
-          }
-          for (const response of surface.drainResponses()) {
-            bridge?.pushInput(response);
-          }
-        };
-
-        bridge = new WasiBridge({
-          args: [resolved.wasm.toString(), ...resolvedArgs],
-          env: resolved.env,
-          stdout: (data) => flushSurfaceOutput(data, stdoutDecoder),
-          stderr: (data) => flushSurfaceOutput(data, stderrDecoder),
-          onExit: (code) => {
-            if (!cancelled) {
-              setStatusAndNotify("exited");
-              resolved.onExit?.(code);
-            }
-          },
-        });
-
-        const wasmApp = await instantiateApp(resolved.wasm, bridge);
-        if (cancelled) return;
-
         setStatusAndNotify("running");
 
         queueMicrotask(() => {
           if (cancelled) return;
-          void wasmApp.run().catch((runError) => {
+          void runOnce(surface).catch((runError) => {
             if (!cancelled) {
               setError(runError);
             }
@@ -155,6 +173,7 @@ export function TuiPreview(props: TuiPreviewProps) {
 
     return () => {
       cancelled = true;
+      activeBridge = null;
       disposeRenderSurface?.();
       disposeRenderSurface = null;
     };
@@ -189,10 +208,17 @@ export function TuiPreview(props: TuiPreviewProps) {
         ...props.style,
       }}
     >
-      <div ref={containerRef} style={{ display: status === "error" ? "none" : undefined }} />
-      {status === "loading" && (
-        <div style={overlayStyle}>Loading…</div>
-      )}
+      <div
+        ref={containerRef}
+        style={{
+          display: status === "error" ? "none" : "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          width: "100%",
+          height: "100%",
+        }}
+      />
+      {status === "loading" && <div style={overlayStyle}>Loading…</div>}
       {status === "error" && (
         <div style={{ ...overlayStyle, color: "#f7768e" }}>
           Error: {errorMsg}
